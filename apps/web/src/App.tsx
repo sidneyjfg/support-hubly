@@ -39,6 +39,9 @@ type Release = {
   createdAt: string;
   items: { id: string; title: string; description: string; ticketId: number | null }[];
 };
+type WorkspaceTab = "tickets" | "releases";
+type MessageMode = "public" | "internal";
+type ActionFeedback = { kind: "success" | "error" | "info"; text: string } | null;
 
 function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}` };
@@ -184,10 +187,16 @@ function Dashboard({ token, user }: { token: string; user: User }) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [releases, setReleases] = useState<Release[]>([]);
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("tickets");
   const [filters, setFilters] = useState({ search: "", status: "", priority: "", categoryId: "" });
   const [notice, setNotice] = useState("");
+  const [actionFeedback, setActionFeedback] = useState<ActionFeedback>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [creatingTicket, setCreatingTicket] = useState(false);
+  const [updatingTicket, setUpdatingTicket] = useState<"status" | "priority" | null>(null);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageMode, setMessageMode] = useState<MessageMode>("public");
+  const [creatingRelease, setCreatingRelease] = useState(false);
   const staff = user.role === "staff" || user.role === "admin";
 
   async function loadBase() {
@@ -201,14 +210,24 @@ function Dashboard({ token, user }: { token: string; user: User }) {
     setReleases(nextReleases);
   }
 
-  async function loadTicket(id: number) {
+  async function loadTicket(id: number, preserveFeedback = false) {
     const ticket = await api<Ticket>(`/tickets/${id}`, { headers: authHeaders(token) });
     setSelected(ticket);
     setSelectedId(id);
+    if (!preserveFeedback) setActionFeedback(null);
   }
 
   useEffect(() => {
     loadBase().catch((err) => setNotice(err.message));
+  }, []);
+
+  useEffect(() => {
+    function syncTabWithHash() {
+      setActiveTab(window.location.hash === "#releases" ? "releases" : "tickets");
+    }
+    syncTabWithHash();
+    window.addEventListener("hashchange", syncTabWithHash);
+    return () => window.removeEventListener("hashchange", syncTabWithHash);
   }, []);
 
   useEffect(() => {
@@ -240,44 +259,79 @@ function Dashboard({ token, user }: { token: string; user: User }) {
   }
 
   async function updateTicket(id: number, data: Partial<Ticket>) {
-    await api<Ticket>(`/tickets/${id}`, {
-      method: "PATCH",
-      headers: { ...authHeaders(token), "Content-Type": "application/json" },
-      body: JSON.stringify(data)
-    });
-    await loadBase();
-    await loadTicket(id);
+    const field = data.status ? "status" : "priority";
+    setUpdatingTicket(field);
+    setActionFeedback({ kind: "info", text: field === "status" ? "Salvando status..." : "Salvando prioridade..." });
+    try {
+      await api<Ticket>(`/tickets/${id}`, {
+        method: "PATCH",
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      await loadBase();
+      await loadTicket(id, true);
+      const value = data.status ? statusLabel(data.status) : data.priority;
+      setActionFeedback({ kind: "success", text: `${field === "status" ? "Status" : "Prioridade"} alterado para ${value}.` });
+    } catch (err) {
+      setActionFeedback({ kind: "error", text: err instanceof Error ? err.message : "Nao foi possivel salvar a alteracao." });
+    } finally {
+      setUpdatingTicket(null);
+    }
   }
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected) return;
+    if (!selected || sendingMessage) return;
     const form = new FormData(event.currentTarget);
-    await fetch(`${API_URL}/api/tickets/${selected.id}/messages`, { method: "POST", headers: authHeaders(token), body: form }).then(async (response) => {
-      if (!response.ok) throw new Error((await response.json()).message);
-    });
-    event.currentTarget.reset();
-    await loadTicket(selected.id);
+    form.set("visibility", messageMode);
+    const target = event.currentTarget;
+    const label = messageMode === "internal" ? "nota interna" : "resposta ao cliente";
+    setSendingMessage(true);
+    setActionFeedback({ kind: "info", text: `Enviando ${label}...` });
+    try {
+      await fetch(`${API_URL}/api/tickets/${selected.id}/messages`, { method: "POST", headers: authHeaders(token), body: form }).then(async (response) => {
+        const body = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(body?.message ?? `Erro ao enviar ${label}.`);
+      });
+      target.reset();
+      await loadTicket(selected.id, true);
+      setActionFeedback({ kind: "success", text: `${messageMode === "internal" ? "Nota interna salva" : "Resposta enviada ao cliente"}.` });
+    } catch (err) {
+      setActionFeedback({ kind: "error", text: err instanceof Error ? err.message : `Erro ao enviar ${label}.` });
+    } finally {
+      setSendingMessage(false);
+    }
   }
 
   async function createRelease(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (creatingRelease) return;
     const form = new FormData(event.currentTarget);
-    await api<Release>("/releases", {
-      method: "POST",
-      headers: { ...authHeaders(token), "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: form.get("title"),
-        description: form.get("description"),
-        status: form.get("status"),
-        published: form.get("published") === "on",
-        items: form.get("itemTitle")
-          ? [{ title: form.get("itemTitle"), description: form.get("itemDescription") || form.get("description"), ticketId: null }]
-          : []
-      })
-    });
-    event.currentTarget.reset();
-    await loadBase();
+    const target = event.currentTarget;
+    setCreatingRelease(true);
+    setNotice("Salvando atualizacao...");
+    try {
+      await api<Release>("/releases", {
+        method: "POST",
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: form.get("title"),
+          description: form.get("description"),
+          status: form.get("status"),
+          published: form.get("published") === "on",
+          items: form.get("itemTitle")
+            ? [{ title: form.get("itemTitle"), description: form.get("itemDescription") || form.get("description"), ticketId: null }]
+            : []
+        })
+      });
+      target.reset();
+      setNotice("Atualizacao salva.");
+      await loadBase();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Erro ao salvar atualizacao.");
+    } finally {
+      setCreatingRelease(false);
+    }
   }
 
   const stats = useMemo(() => ({
@@ -289,7 +343,16 @@ function Dashboard({ token, user }: { token: string; user: User }) {
     <div className="workspace">
       {notice && <div className="notice" onClick={() => setNotice("")}>{notice}</div>}
 
-      <section id="tickets" className="band">
+      <div className="workspace-tabs" role="tablist" aria-label="Areas do painel">
+        <button type="button" className={activeTab === "tickets" ? "active" : ""} onClick={() => { window.location.hash = "tickets"; setActiveTab("tickets"); }} aria-selected={activeTab === "tickets"} role="tab">
+          <TicketIcon size={17} /> Tickets
+        </button>
+        <button type="button" className={activeTab === "releases" ? "active" : ""} onClick={() => { window.location.hash = "releases"; setActiveTab("releases"); }} aria-selected={activeTab === "releases"} role="tab">
+          <Bell size={17} /> Atualizacoes
+        </button>
+      </div>
+
+      {activeTab === "tickets" && <section id="tickets" className="band">
         <div className="section-heading">
           <div>
             <span className="eyebrow">Tickets</span>
@@ -313,7 +376,7 @@ function Dashboard({ token, user }: { token: string; user: User }) {
             </div>
             <div className="ticket-list">
               {tickets.map((ticket) => (
-                <button key={ticket.id} className={`ticket-row ${selectedId === ticket.id ? "active" : ""}`} onClick={() => loadTicket(ticket.id)}>
+                <button key={ticket.id} className={`ticket-row ${selectedId === ticket.id ? "active" : ""}`} onClick={() => setSelectedId(ticket.id)}>
                   <span className={`dot ${ticket.status}`} />
                   <strong>#{ticket.id} {ticket.subject}</strong><span className="ticket-status">{statusLabel(ticket.status)}</span>
                   <small>{ticket.category?.name} · {ticket.priority} · {new Date(ticket.updatedAt).toLocaleDateString("pt-BR")}</small>
@@ -331,15 +394,20 @@ function Dashboard({ token, user }: { token: string; user: User }) {
               <div>
                 <h3><MessageSquare size={18} /> #{selected.id} {selected.subject}</h3>
                 <p>{selected.details}</p>
+                {actionFeedback && <div className={`action-feedback ${actionFeedback.kind}`}>{actionFeedback.text}</div>}
               </div>
               {staff && (
                 <div className="actions">
-                  <select value={selected.status} onChange={(e) => updateTicket(selected.id, { status: e.target.value as Ticket["status"] })}>
+                  <label>Status
+                    <select value={selected.status} disabled={updatingTicket !== null} onChange={(e) => updateTicket(selected.id, { status: e.target.value as Ticket["status"] })}>
                     {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                  <select value={selected.priority} onChange={(e) => updateTicket(selected.id, { priority: e.target.value as Ticket["priority"] })}>
+                    </select>
+                  </label>
+                  <label>Prioridade
+                    <select value={selected.priority} disabled={updatingTicket !== null} onChange={(e) => updateTicket(selected.id, { priority: e.target.value as Ticket["priority"] })}>
                     <option value="baixa">Baixa</option><option value="media">Media</option><option value="alta">Alta</option><option value="urgente">Urgente</option>
-                  </select>
+                    </select>
+                  </label>
                 </div>
               )}
             </div>
@@ -355,14 +423,22 @@ function Dashboard({ token, user }: { token: string; user: User }) {
               ))}
             </div>
             <form className="form reply-form" onSubmit={sendMessage}>
-              <textarea name="message" placeholder="Responder ticket" required />
-              {staff && <label className="checkbox"><input name="visibility" type="checkbox" value="internal" /> Nota interna</label>}
-              <input name="file" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" />
-              <button className="primary-button" type="submit"><Send size={17} /> Responder</button>
+              {staff && (
+                <div className="message-mode" role="tablist" aria-label="Tipo de mensagem">
+                  <button type="button" className={messageMode === "public" ? "active" : ""} onClick={() => setMessageMode("public")}>Resposta ao cliente</button>
+                  <button type="button" className={messageMode === "internal" ? "active" : ""} onClick={() => setMessageMode("internal")}>Nota interna</button>
+                </div>
+              )}
+              <textarea name="message" placeholder={messageMode === "internal" ? "Escrever nota interna" : "Responder ao cliente"} required disabled={sendingMessage} />
+              <input name="file" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" disabled={sendingMessage} />
+              <button className="primary-button" type="submit" disabled={sendingMessage}>
+                {sendingMessage ? <LoaderCircle className="spin" size={17} /> : <Send size={17} />}
+                {sendingMessage ? "Enviando..." : messageMode === "internal" ? "Salvar nota" : "Enviar resposta"}
+              </button>
             </form>
           </div>
         )}
-      </section>
+      </section>}
 
       {createOpen && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => !creatingTicket && setCreateOpen(false)}>
@@ -391,7 +467,7 @@ function Dashboard({ token, user }: { token: string; user: User }) {
         </div>
       )}
 
-      <section id="releases" className="band">
+      {activeTab === "releases" && <section id="releases" className="band">
         <div className="section-heading">
           <div><span className="eyebrow">Atualizacoes</span><h2>Releases e resolvidos</h2></div>
         </div>
@@ -399,11 +475,14 @@ function Dashboard({ token, user }: { token: string; user: User }) {
           <div className="panel">
             <h3><CheckCircle2 size={18} /> Publicar atualizacao</h3>
             <form className="form compact" onSubmit={createRelease}>
-              <div className="form-row"><label>Titulo<input name="title" required /></label><label>Status<select name="status"><option value="planejado">Planejado</option><option value="em_andamento">Em andamento</option><option value="resolvido">Resolvido</option><option value="publicado">Publicado</option></select></label></div>
-              <label>Descricao<textarea name="description" required /></label>
-              <div className="form-row"><label>Item resolvido<input name="itemTitle" /></label><label>Detalhe do item<input name="itemDescription" /></label></div>
-              <label className="checkbox"><input name="published" type="checkbox" defaultChecked /> Publicar para todos os clientes</label>
-              <button className="primary-button" type="submit">Salvar atualizacao</button>
+              <div className="form-row"><label>Titulo<input name="title" required disabled={creatingRelease} /></label><label>Status<select name="status" disabled={creatingRelease}><option value="planejado">Planejado</option><option value="em_andamento">Em andamento</option><option value="resolvido">Resolvido</option><option value="publicado">Publicado</option></select></label></div>
+              <label>Descricao<textarea name="description" required disabled={creatingRelease} /></label>
+              <div className="form-row"><label>Item resolvido<input name="itemTitle" disabled={creatingRelease} /></label><label>Detalhe do item<input name="itemDescription" disabled={creatingRelease} /></label></div>
+              <label className="checkbox"><input name="published" type="checkbox" defaultChecked disabled={creatingRelease} /> Publicar para todos os clientes</label>
+              <button className="primary-button" type="submit" disabled={creatingRelease}>
+                {creatingRelease ? <LoaderCircle className="spin" size={17} /> : <CheckCircle2 size={17} />}
+                {creatingRelease ? "Salvando..." : "Salvar atualizacao"}
+              </button>
             </form>
           </div>
         )}
@@ -418,7 +497,7 @@ function Dashboard({ token, user }: { token: string; user: User }) {
           ))}
           {!releases.length && <div className="empty">Nenhuma atualizacao publicada.</div>}
         </div>
-      </section>
+      </section>}
     </div>
   );
 }
