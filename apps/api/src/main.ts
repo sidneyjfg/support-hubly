@@ -10,6 +10,7 @@ import { authRoutes } from "./routes/auth.js";
 import { categoryRoutes } from "./routes/categories.js";
 import { releaseRoutes } from "./routes/releases.js";
 import { ticketRoutes } from "./routes/tickets.js";
+import { logEvolutionConnection } from "./services/evolution.js";
 import { uploadsDir } from "./services/upload.js";
 
 async function bootstrap() {
@@ -38,6 +39,7 @@ async function bootstrap() {
   await app.register(categoryRoutes, { prefix: "/api" });
   await app.register(ticketRoutes, { prefix: "/api" });
   await app.register(releaseRoutes, { prefix: "/api" });
+  await logEvolutionConnection(app.log);
 
   app.setErrorHandler((error: Error & { statusCode?: number }, _request, reply) => {
     app.log.error(error);

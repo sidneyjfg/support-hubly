@@ -18,8 +18,17 @@ async function readMultipart(request: FastifyRequest) {
   const fields: MultipartFields = {};
   const files = [];
   for await (const part of request.parts()) {
-    if (part.type === "file") files.push(part);
-    else fields[part.fieldname] = String(part.value ?? "");
+    if (part.type === "file") {
+      if (!part.filename) {
+        for await (const _chunk of part.file) {
+          // Empty file inputs still arrive as multipart parts in some browsers.
+        }
+        continue;
+      }
+      files.push(part);
+    } else {
+      fields[part.fieldname] = String(part.value ?? "");
+    }
   }
   return { fields, files };
 }
