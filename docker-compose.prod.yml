@@ -1,0 +1,32 @@
+services:
+  api:
+    image: ghcr.io/sidneyjfg/support-hubly-api:latest
+    container_name: support_ticket_api
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      DB_HOST: host.docker.internal
+      DB_PORT: 3306
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - support_ticket_uploads:/app/apps/api/uploads
+    networks:
+      - hubly-network
+
+  web:
+    image: ghcr.io/sidneyjfg/support-hubly-web:latest
+    container_name: support_ticket_web
+    restart: unless-stopped
+    depends_on:
+      - api
+    networks:
+      - hubly-network
+
+volumes:
+  support_ticket_uploads:
+
+networks:
+  hubly-network:
+    external: true
