@@ -1,4 +1,4 @@
-FROM node:20-alpine AS deps
+FROM public.ecr.aws/docker/library/node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY apps/api/package.json apps/api/package.json
@@ -8,7 +8,7 @@ FROM deps AS build
 COPY apps/api apps/api
 RUN npm run build -w apps/api
 
-FROM node:20-alpine
+FROM public.ecr.aws/docker/library/node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=deps /app/node_modules node_modules
