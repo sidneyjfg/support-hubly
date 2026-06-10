@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Bell, CheckCircle2, FileText, LogOut, MessageSquare, Plus, Search, Send, TicketIcon } from "lucide-react";
+import { Bell, CheckCircle2, FileText, LogOut, MessageSquare, Plus, Search, Send, TicketIcon, X } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3333";
 
@@ -11,7 +11,7 @@ type Ticket = {
   subject: string;
   details: string;
   priority: "baixa" | "media" | "alta" | "urgente";
-  status: "aberto" | "em_atendimento" | "resolvido";
+  status: "em_fila" | "analisando" | "em_desenvolvimento" | "resolvido" | "aberto" | "em_atendimento";
   createdAt: string;
   updatedAt: string;
   requester?: User;
@@ -42,6 +42,21 @@ type Release = {
 
 function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}` };
+}
+
+const statusOptions = [
+  { value: "em_fila", label: "Em fila" },
+  { value: "analisando", label: "Analisando" },
+  { value: "em_desenvolvimento", label: "Em desenvolvimento" },
+  { value: "resolvido", label: "Resolvido" }
+] as const;
+
+function statusLabel(status: Ticket["status"]) {
+  const legacy: Record<string, string> = {
+    aberto: "Em fila",
+    em_atendimento: "Analisando"
+  };
+  return legacy[status] ?? statusOptions.find((option) => option.value === status)?.label ?? status;
 }
 
 async function api<T>(path: string, options: RequestInit = {}) {
@@ -171,6 +186,7 @@ function Dashboard({ token, user }: { token: string; user: User }) {
   const [releases, setReleases] = useState<Release[]>([]);
   const [filters, setFilters] = useState({ search: "", status: "", priority: "", categoryId: "" });
   const [notice, setNotice] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
   const staff = user.role === "staff" || user.role === "admin";
 
   async function loadBase() {
@@ -206,6 +222,7 @@ function Dashboard({ token, user }: { token: string; user: User }) {
       return response.json();
     });
     event.currentTarget.reset();
+    setCreateOpen(false);
     setNotice("Ticket criado e notificacao enviada para a equipe.");
     await loadBase();
   }
@@ -266,35 +283,27 @@ function Dashboard({ token, user }: { token: string; user: User }) {
             <span className="eyebrow">Tickets</span>
             <h2>{staff ? "Fila de atendimento" : "Meus tickets"}</h2>
           </div>
-          <div className="stats"><span>{stats.open} ativos</span><span>{stats.solved} resolvidos</span></div>
+          <div className="heading-actions">
+            <button className="primary-button" type="button" onClick={() => setCreateOpen(true)}><Plus size={17} /> Novo ticket</button>
+            <div className="stats"><span>{stats.open} ativos</span><span>{stats.solved} resolvidos</span></div>
+          </div>
         </div>
 
         <div className="ticket-grid">
-          <div className="panel">
-            <h3><Plus size={18} /> Novo ticket</h3>
-            <form className="form compact" onSubmit={createTicket}>
-              <label>Assunto<input name="subject" required minLength={3} /></label>
-              <label>Detalhes<textarea name="details" required minLength={5} /></label>
-              <div className="form-row">
-                <label>Categoria<select name="categoryId" required>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-                <label>Prioridade<select name="priority" defaultValue="media"><option value="baixa">Baixa</option><option value="media">Media</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></label>
-              </div>
-              <label>Anexo<input name="file" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" /></label>
-              <button className="primary-button" type="submit"><Send size={17} /> Enviar ticket</button>
-            </form>
-          </div>
-
           <div className="panel list-panel">
             <div className="filters">
               <div className="search"><Search size={16} /><input placeholder="Buscar assunto" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} /></div>
-              <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="">Status</option><option value="aberto">Aberto</option><option value="em_atendimento">Em atendimento</option><option value="resolvido">Resolvido</option></select>
+              <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+                <option value="">Status</option>
+                {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
               <button className="secondary-button" onClick={() => loadBase()}>Filtrar</button>
             </div>
             <div className="ticket-list">
               {tickets.map((ticket) => (
                 <button key={ticket.id} className={`ticket-row ${selectedId === ticket.id ? "active" : ""}`} onClick={() => loadTicket(ticket.id)}>
                   <span className={`dot ${ticket.status}`} />
-                  <strong>#{ticket.id} {ticket.subject}</strong>
+                  <strong>#{ticket.id} {ticket.subject}</strong><span className="ticket-status">{statusLabel(ticket.status)}</span>
                   <small>{ticket.category?.name} · {ticket.priority} · {new Date(ticket.updatedAt).toLocaleDateString("pt-BR")}</small>
                   {staff && <small>{ticket.requester?.name} · {ticket.organization?.name}</small>}
                 </button>
@@ -314,7 +323,7 @@ function Dashboard({ token, user }: { token: string; user: User }) {
               {staff && (
                 <div className="actions">
                   <select value={selected.status} onChange={(e) => updateTicket(selected.id, { status: e.target.value as Ticket["status"] })}>
-                    <option value="aberto">Aberto</option><option value="em_atendimento">Em atendimento</option><option value="resolvido">Resolvido</option>
+                    {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                   <select value={selected.priority} onChange={(e) => updateTicket(selected.id, { priority: e.target.value as Ticket["priority"] })}>
                     <option value="baixa">Baixa</option><option value="media">Media</option><option value="alta">Alta</option><option value="urgente">Urgente</option>
@@ -342,6 +351,30 @@ function Dashboard({ token, user }: { token: string; user: User }) {
           </div>
         )}
       </section>
+
+      {createOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setCreateOpen(false)}>
+          <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="new-ticket-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h3 id="new-ticket-title"><Plus size={18} /> Novo ticket</h3>
+              <button className="icon-button" type="button" aria-label="Fechar" onClick={() => setCreateOpen(false)}><X size={18} /></button>
+            </div>
+            <form className="form compact" onSubmit={createTicket}>
+              <label>Assunto<input name="subject" required minLength={3} autoFocus /></label>
+              <label>Detalhes<textarea name="details" required minLength={5} /></label>
+              <div className="form-row">
+                <label>Categoria<select name="categoryId" required>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+                <label>Prioridade<select name="priority" defaultValue="media"><option value="baixa">Baixa</option><option value="media">Media</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></label>
+              </div>
+              <label>Anexo<input name="file" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" /></label>
+              <div className="modal-actions">
+                <button className="secondary-button" type="button" onClick={() => setCreateOpen(false)}>Cancelar</button>
+                <button className="primary-button" type="submit"><Send size={17} /> Enviar ticket</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
 
       <section id="releases" className="band">
         <div className="section-heading">

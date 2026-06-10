@@ -80,7 +80,8 @@ export async function ticketRoutes(app: FastifyInstance) {
         details: input.details.trim(),
         category,
         categoryId: category.id,
-        priority: input.priority
+        priority: input.priority,
+        status: "em_fila"
       })
     );
 
@@ -136,7 +137,7 @@ export async function ticketRoutes(app: FastifyInstance) {
     const params = z.object({ id: z.coerce.number() }).parse(request.params);
     const input = z
       .object({
-        status: z.enum(["aberto", "em_atendimento", "resolvido"]).optional(),
+        status: z.enum(["em_fila", "analisando", "em_desenvolvimento", "resolvido"]).optional(),
         priority: z.enum(["baixa", "media", "alta", "urgente"]).optional(),
         categoryId: z.string().uuid().optional()
       })

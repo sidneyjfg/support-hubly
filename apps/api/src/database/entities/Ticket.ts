@@ -6,7 +6,7 @@ import { TicketMessage } from "./TicketMessage.js";
 import { User } from "./User.js";
 
 export type TicketPriority = "baixa" | "media" | "alta" | "urgente";
-export type TicketStatus = "aberto" | "em_atendimento" | "resolvido";
+export type TicketStatus = "em_fila" | "analisando" | "em_desenvolvimento" | "resolvido";
 
 @Entity("tickets")
 export class Ticket {
@@ -40,7 +40,7 @@ export class Ticket {
   @Column({ type: "varchar", length: 20, default: "media" })
   priority!: TicketPriority;
 
-  @Column({ type: "varchar", length: 30, default: "aberto" })
+  @Column({ type: "varchar", length: 30, default: "em_fila" })
   status!: TicketStatus;
 
   @Column({ type: "datetime", nullable: true })
