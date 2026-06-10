@@ -17,7 +17,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_OWNER: sidneyjfg
   REPOSITORY_NAME: support-hubly
-  VITE_API_URL: https://support.hublyapp.com.br
+  VITE_API_URL: https://api-support.hublyapp.com.br
 
 jobs:
   build:

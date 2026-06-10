@@ -8,8 +8,11 @@ services:
     environment:
       DB_HOST: host.docker.internal
       DB_PORT: 3306
+      API_PORT: 3003
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:3003:3003"
     volumes:
       - support_ticket_uploads:/app/apps/api/uploads
     networks:
@@ -19,6 +22,8 @@ services:
     image: ghcr.io/sidneyjfg/support-hubly-web:latest
     container_name: support_ticket_web
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:3004:80"
     depends_on:
       - api
     networks:

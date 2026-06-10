@@ -75,9 +75,10 @@ Para a Evolution API:
 
 No proxy/reverse proxy, a rota publica deve encaminhar:
 
-- `/` para `support_ticket_web:80`
-- `/api` para `support_ticket_api:3333`
-- `/health` para `support_ticket_api:3333`
+- `support.hublyapp.com.br` para `127.0.0.1:3004`
+- `api-support.hublyapp.com.br` para `127.0.0.1:3003`
+
+Exemplo de Nginx: `deploy/nginx/support-hubly.conf`.
 
 ## Rodar com Docker
 
