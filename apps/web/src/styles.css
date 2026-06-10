@@ -81,8 +81,8 @@ button:disabled, input:disabled, textarea:disabled, select:disabled {
   padding: 10px 12px;
 }
 .workspace-tabs {
-  width: min(460px, 100%);
-  grid-template-columns: 1fr 1fr;
+  width: min(620px, 100%);
+  grid-template-columns: repeat(3, 1fr);
 }
 .workspace-tabs button, .message-mode button {
   display: inline-flex;
@@ -312,6 +312,34 @@ h3 { display: flex; align-items: center; gap: 8px; font-size: 17px; }
   display: flex;
   gap: 7px;
   color: hsl(214 14% 82%);
+}
+.help-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+.help-panel {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+.help-featured {
+  border-color: rgba(58, 140, 255, .42);
+  background: linear-gradient(135deg, rgba(58, 140, 255, .14), rgba(28, 184, 122, .08)), color-mix(in srgb, var(--panel) 88%, black);
+}
+.help-panel h3 { margin-bottom: 0; }
+.help-panel p {
+  margin-bottom: 0;
+  color: hsl(214 14% 78%);
+  line-height: 1.65;
+}
+.help-list {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding-left: 20px;
+  color: hsl(214 14% 78%);
+  line-height: 1.55;
 }
 .empty {
   padding: 18px;

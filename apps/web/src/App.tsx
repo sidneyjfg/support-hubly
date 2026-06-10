@@ -1,5 +1,21 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Bell, CheckCircle2, FileText, LoaderCircle, LogOut, MessageSquare, Plus, Search, Send, TicketIcon, X } from "lucide-react";
+import {
+  Bell,
+  CalendarClock,
+  CheckCircle2,
+  FileText,
+  HelpCircle,
+  LoaderCircle,
+  LogOut,
+  MessageSquare,
+  Plus,
+  Search,
+  Send,
+  Store,
+  TicketIcon,
+  UserRound,
+  X
+} from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3333";
 
@@ -39,7 +55,7 @@ type Release = {
   createdAt: string;
   items: { id: string; title: string; description: string; ticketId: number | null }[];
 };
-type WorkspaceTab = "tickets" | "releases";
+type WorkspaceTab = "tickets" | "releases" | "help";
 type MessageMode = "public" | "internal";
 type ActionFeedback = { kind: "success" | "error" | "info"; text: string } | null;
 
@@ -83,6 +99,7 @@ function AppShell({ user, onLogout, children }: { user: User; onLogout: () => vo
         <nav className="nav">
           <a href="#tickets"><TicketIcon size={18} /> Tickets</a>
           <a href="#releases"><Bell size={18} /> Atualizacoes</a>
+          <a href="#help"><HelpCircle size={18} /> Ajuda</a>
         </nav>
         <button className="ghost-button" onClick={onLogout}><LogOut size={17} /> Sair</button>
       </aside>
@@ -223,7 +240,15 @@ function Dashboard({ token, user }: { token: string; user: User }) {
 
   useEffect(() => {
     function syncTabWithHash() {
-      setActiveTab(window.location.hash === "#releases" ? "releases" : "tickets");
+      if (window.location.hash === "#releases") {
+        setActiveTab("releases");
+        return;
+      }
+      if (window.location.hash === "#help") {
+        setActiveTab("help");
+        return;
+      }
+      setActiveTab("tickets");
     }
     syncTabWithHash();
     window.addEventListener("hashchange", syncTabWithHash);
@@ -349,6 +374,9 @@ function Dashboard({ token, user }: { token: string; user: User }) {
         </button>
         <button type="button" className={activeTab === "releases" ? "active" : ""} onClick={() => { window.location.hash = "releases"; setActiveTab("releases"); }} aria-selected={activeTab === "releases"} role="tab">
           <Bell size={17} /> Atualizacoes
+        </button>
+        <button type="button" className={activeTab === "help" ? "active" : ""} onClick={() => { window.location.hash = "help"; setActiveTab("help"); }} aria-selected={activeTab === "help"} role="tab">
+          <HelpCircle size={17} /> Ajuda
         </button>
       </div>
 
@@ -496,6 +524,126 @@ function Dashboard({ token, user }: { token: string; user: User }) {
             </article>
           ))}
           {!releases.length && <div className="empty">Nenhuma atualizacao publicada.</div>}
+        </div>
+      </section>}
+
+      {activeTab === "help" && <section id="help" className="band">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">Ajuda Hubly</span>
+            <h2>Duvidas comuns sobre vitrine e agendamentos</h2>
+          </div>
+        </div>
+
+        <div className="panel help-panel help-featured">
+          <h3><HelpCircle size={18} /> Por que meu cliente nao consegue agendar?</h3>
+          <p>Na maioria dos casos, o bloqueio acontece porque a vitrine ainda nao esta pronta para o publico. O cliente so consegue agendar quando existe vitrine publicada, perfil completo, profissional ativo, servico ativo com preco e horario disponivel para aquele profissional.</p>
+          <ul className="help-list">
+            <li>Abra <strong>Vitrine</strong> e veja se o checklist esta completo.</li>
+            <li>Confira se o botao <strong>Publicado</strong> esta ativo e se voce clicou em <strong>Salvar vitrine</strong>.</li>
+            <li>Em <strong>Profissionais</strong>, confirme se o profissional esta ativo.</li>
+            <li>Clique em <strong>Horarios</strong> e confira se existe pelo menos um dia ativo com expediente valido.</li>
+            <li>Veja se o servico esta ativo, tem preco e pertence ao mesmo profissional.</li>
+            <li>Teste em <strong>/clientes</strong>, escolhendo a empresa, profissional, servico, data e horario.</li>
+          </ul>
+        </div>
+
+        <div className="help-layout">
+          <div className="panel help-panel">
+            <h3><TicketIcon size={18} /> Como abrir um chamado de suporte</h3>
+            <p>Use chamados quando a organizacao tentou seguir os passos e ainda precisa de ajuda da equipe Hubly.</p>
+            <ul className="help-list">
+              <li>Abra a aba <strong>Tickets</strong>.</li>
+              <li>Clique em <strong>Novo ticket</strong>.</li>
+              <li>Escreva um assunto claro, por exemplo: <strong>Cliente nao consegue agendar</strong>.</li>
+              <li>Em detalhes, informe o nome da organizacao, link da vitrine, profissional, servico, data testada e o erro visto.</li>
+              <li>Se tiver print, anexe uma imagem ou PDF.</li>
+              <li>Clique em <strong>Enviar ticket</strong>. A equipe sera notificada e acompanhara por respostas dentro do ticket.</li>
+            </ul>
+          </div>
+
+          <div className="panel help-panel">
+            <h3><Store size={18} /> Minha empresa nao aparece na galeria publica</h3>
+            <p>Isso acontece quando a vitrine esta em rascunho ou ainda nao atende os requisitos minimos.</p>
+            <ul className="help-list">
+              <li>Preencha nome publico, descricao, telefone ou e-mail.</li>
+              <li>Informe rua, cidade e UF.</li>
+              <li>Adicione uma URL de foto de capa.</li>
+              <li>Ative <strong>Publicado</strong> e clique em <strong>Salvar vitrine</strong>.</li>
+            </ul>
+          </div>
+
+          <div className="panel help-panel">
+            <h3><UserRound size={18} /> O profissional nao aparece para o cliente</h3>
+            <p>O cliente so escolhe profissionais que estao prontos para agendamento publico.</p>
+            <ul className="help-list">
+              <li>Cadastre o profissional em <strong>Profissionais</strong>.</li>
+              <li>Informe nome completo e especialidade.</li>
+              <li>Mantenha o status como <strong>Ativo</strong>.</li>
+              <li>Garanta que ele tenha pelo menos um servico ativo com preco.</li>
+            </ul>
+          </div>
+
+          <div className="panel help-panel">
+            <h3><CalendarClock size={18} /> Nao aparece nenhum horario disponivel</h3>
+            <p>Os horarios dependem da carga horaria do profissional e da duracao do servico escolhido.</p>
+            <ul className="help-list">
+              <li>Clique em <strong>Horarios</strong> no profissional correto.</li>
+              <li>Ative os dias em que ele atende.</li>
+              <li>Use formato <strong>HH:MM</strong>, como 09:00 e 18:00.</li>
+              <li>O horario inicial precisa ser menor que o horario final.</li>
+              <li>Se preencher almoco, preencha inicio e fim. Para nao usar intervalo, deixe os dois vazios.</li>
+              <li>Se ja existe agendamento naquele horario, o slot fica ocupado.</li>
+            </ul>
+          </div>
+
+          <div className="panel help-panel">
+            <h3><FileText size={18} /> O servico nao aparece na pagina publica</h3>
+            <p>Servicos sem preco ou inativos nao entram no agendamento publico.</p>
+            <ul className="help-list">
+              <li>Crie o servico em <strong>Profissionais</strong> &gt; <strong>Novo servico</strong>.</li>
+              <li>Escolha o profissional correto.</li>
+              <li>Informe duracao em minutos.</li>
+              <li>Informe preco maior que zero.</li>
+              <li>Mantenha o servico como <strong>Ativo</strong>.</li>
+            </ul>
+          </div>
+
+          <div className="panel help-panel">
+            <h3><CheckCircle2 size={18} /> Ativei publicado, mas continua como rascunho</h3>
+            <p>O Hubly nao publica uma vitrine incompleta. Se faltar algum requisito, ele salva como rascunho para evitar uma pagina quebrada para o cliente final.</p>
+            <ul className="help-list">
+              <li>Complete o perfil publico.</li>
+              <li>Cadastre um profissional ativo.</li>
+              <li>Cadastre um servico ativo com preco.</li>
+              <li>Configure agenda ativa para esse profissional.</li>
+              <li>Volte em <strong>Vitrine</strong>, ative <strong>Publicado</strong> e salve novamente.</li>
+            </ul>
+          </div>
+
+          <div className="panel help-panel">
+            <h3><MessageSquare size={18} /> O cliente preencheu tudo e nao confirma</h3>
+            <p>O botao de confirmacao so libera quando os dados obrigatorios estao validos.</p>
+            <ul className="help-list">
+              <li>Escolha profissional, servico, data e horario.</li>
+              <li>Informe nome completo.</li>
+              <li>Informe e-mail valido.</li>
+              <li>Informe WhatsApp brasileiro valido.</li>
+              <li>Se nao estiver conectado, crie senha com pelo menos 8 caracteres.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="panel help-panel">
+          <h3><CheckCircle2 size={18} /> Caminho correto para testar do zero</h3>
+          <ul className="help-list">
+            <li>No Hubly, abra <strong>Vitrine</strong> e complete perfil, endereco e foto de capa.</li>
+            <li>Abra <strong>Profissionais</strong>, crie um profissional e deixe ativo.</li>
+            <li>No profissional, clique em <strong>Horarios</strong> e salve dias ativos com expediente valido.</li>
+            <li>Crie um <strong>Novo servico</strong> para esse profissional, com duracao e preco.</li>
+            <li>Volte para <strong>Vitrine</strong>, ative <strong>Publicado</strong> e clique em <strong>Salvar vitrine</strong>.</li>
+            <li>Acesse <strong>/clientes</strong>, encontre a empresa e faça um agendamento de teste.</li>
+          </ul>
         </div>
       </section>}
     </div>
