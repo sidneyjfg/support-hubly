@@ -3,6 +3,8 @@ import { AppDataSource } from "../database/data-source.js";
 import { WhatsappNotification } from "../database/entities/WhatsappNotification.js";
 import type { Ticket } from "../database/entities/Ticket.js";
 
+const NOTIFICATION_TIMEOUT_MS = 8000;
+
 export async function notifyNewTicket(ticket: Ticket) {
   const repo = AppDataSource.getRepository(WhatsappNotification);
   const notification = await repo.save(
@@ -22,10 +24,13 @@ export async function notifyNewTicket(ticket: Ticket) {
 
   const link = `${env.appPublicUrl.replace(/\/$/, "")}/admin/tickets/${ticket.id}`;
   const text = `Novo ticket recebido\nNome: ${ticket.requester.name}\nAssunto: ${ticket.subject}\nTicket: #${ticket.id}\nLink: ${link}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), NOTIFICATION_TIMEOUT_MS);
 
   try {
     const response = await fetch(`${env.evolution.url.replace(/\/$/, "")}/message/sendText/${env.evolution.instance}`, {
       method: "POST",
+      signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
         apikey: env.evolution.apiKey
@@ -45,8 +50,12 @@ export async function notifyNewTicket(ticket: Ticket) {
     return notification;
   } catch (error) {
     notification.status = "failed";
-    notification.errorMessage = error instanceof Error ? error.message : "Erro desconhecido.";
+    notification.errorMessage = error instanceof Error && error.name === "AbortError"
+      ? "Tempo limite ao chamar Evolution API."
+      : error instanceof Error ? error.message : "Erro desconhecido.";
     await repo.save(notification);
     return notification;
+  } finally {
+    clearTimeout(timeout);
   }
 }

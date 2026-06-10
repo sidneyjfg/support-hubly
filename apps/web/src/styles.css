@@ -22,6 +22,10 @@ body {
 }
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
+button:disabled, input:disabled, textarea:disabled, select:disabled {
+  cursor: not-allowed;
+  opacity: .68;
+}
 
 .auth-page {
   min-height: 100vh;
@@ -101,6 +105,8 @@ textarea { min-height: 108px; resize: vertical; }
 }
 .primary-button { background: linear-gradient(135deg, var(--primary), var(--secondary)); }
 .secondary-button { background: var(--muted); border-color: var(--border); }
+.spin { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .error, .notice {
   border: 1px solid rgba(255, 90, 90, .35);
   background: rgba(255, 90, 90, .1);

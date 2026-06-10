@@ -114,7 +114,9 @@ export async function ticketRoutes(app: FastifyInstance) {
     }
 
     const fullTicket = await ticketRepo.findOneOrFail({ where: { id: ticket.id } });
-    await notifyNewTicket(fullTicket);
+    void notifyNewTicket(fullTicket).catch((error) => {
+      request.log.error({ err: error, ticketId: fullTicket.id }, "Erro ao notificar novo ticket");
+    });
     return reply.code(201).send(fullTicket);
   });
 

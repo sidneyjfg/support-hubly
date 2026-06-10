@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Bell, CheckCircle2, FileText, LogOut, MessageSquare, Plus, Search, Send, TicketIcon, X } from "lucide-react";
+import { Bell, CheckCircle2, FileText, LoaderCircle, LogOut, MessageSquare, Plus, Search, Send, TicketIcon, X } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3333";
 
@@ -187,6 +187,7 @@ function Dashboard({ token, user }: { token: string; user: User }) {
   const [filters, setFilters] = useState({ search: "", status: "", priority: "", categoryId: "" });
   const [notice, setNotice] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [creatingTicket, setCreatingTicket] = useState(false);
   const staff = user.role === "staff" || user.role === "admin";
 
   async function loadBase() {
@@ -216,15 +217,26 @@ function Dashboard({ token, user }: { token: string; user: User }) {
 
   async function createTicket(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    await fetch(`${API_URL}/api/tickets`, { method: "POST", headers: authHeaders(token), body: form }).then(async (response) => {
-      if (!response.ok) throw new Error((await response.json()).message);
-      return response.json();
-    });
-    event.currentTarget.reset();
-    setCreateOpen(false);
-    setNotice("Ticket criado e notificacao enviada para a equipe.");
-    await loadBase();
+    if (creatingTicket) return;
+    const target = event.currentTarget;
+    const form = new FormData(target);
+    setCreatingTicket(true);
+    setNotice("Criando ticket...");
+    try {
+      await fetch(`${API_URL}/api/tickets`, { method: "POST", headers: authHeaders(token), body: form }).then(async (response) => {
+        const body = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(body?.message ?? "Erro ao criar ticket.");
+        return body;
+      });
+      target.reset();
+      setCreateOpen(false);
+      setNotice("Ticket criado. A equipe sera notificada.");
+      await loadBase();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Erro ao criar ticket.");
+    } finally {
+      setCreatingTicket(false);
+    }
   }
 
   async function updateTicket(id: number, data: Partial<Ticket>) {
@@ -353,23 +365,26 @@ function Dashboard({ token, user }: { token: string; user: User }) {
       </section>
 
       {createOpen && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setCreateOpen(false)}>
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => !creatingTicket && setCreateOpen(false)}>
           <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="new-ticket-title" onMouseDown={(event) => event.stopPropagation()}>
             <div className="modal-header">
               <h3 id="new-ticket-title"><Plus size={18} /> Novo ticket</h3>
-              <button className="icon-button" type="button" aria-label="Fechar" onClick={() => setCreateOpen(false)}><X size={18} /></button>
+              <button className="icon-button" type="button" aria-label="Fechar" onClick={() => setCreateOpen(false)} disabled={creatingTicket}><X size={18} /></button>
             </div>
             <form className="form compact" onSubmit={createTicket}>
-              <label>Assunto<input name="subject" required minLength={3} autoFocus /></label>
-              <label>Detalhes<textarea name="details" required minLength={5} /></label>
+              <label>Assunto<input name="subject" required minLength={3} autoFocus disabled={creatingTicket} /></label>
+              <label>Detalhes<textarea name="details" required minLength={5} disabled={creatingTicket} /></label>
               <div className="form-row">
-                <label>Categoria<select name="categoryId" required>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-                <label>Prioridade<select name="priority" defaultValue="media"><option value="baixa">Baixa</option><option value="media">Media</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></label>
+                <label>Categoria<select name="categoryId" required disabled={creatingTicket}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+                <label>Prioridade<select name="priority" defaultValue="media" disabled={creatingTicket}><option value="baixa">Baixa</option><option value="media">Media</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></label>
               </div>
-              <label>Anexo<input name="file" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" /></label>
+              <label>Anexo<input name="file" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" disabled={creatingTicket} /></label>
               <div className="modal-actions">
-                <button className="secondary-button" type="button" onClick={() => setCreateOpen(false)}>Cancelar</button>
-                <button className="primary-button" type="submit"><Send size={17} /> Enviar ticket</button>
+                <button className="secondary-button" type="button" onClick={() => setCreateOpen(false)} disabled={creatingTicket}>Cancelar</button>
+                <button className="primary-button" type="submit" disabled={creatingTicket}>
+                  {creatingTicket ? <LoaderCircle className="spin" size={17} /> : <Send size={17} />}
+                  {creatingTicket ? "Criando..." : "Enviar ticket"}
+                </button>
               </div>
             </form>
           </section>
